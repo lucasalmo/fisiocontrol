@@ -11,6 +11,8 @@ export function CycleProgress({ cycle }: { cycle: Cycle }) {
     { label: "Pendentes", value: p.pending },
     { label: "Livres para agendar", value: p.available },
     { label: "Saldo (não realizadas)", value: p.balance },
+    ...(cycle.extraAllowance ? [{ label: "Extras disponíveis", value: p.extrasAvailable }] : []),
+    ...(p.excess ? [{ label: "Excedentes realizadas", value: p.excess }] : []),
   ];
   return (
     <div className="flex flex-col gap-3">
@@ -22,7 +24,7 @@ export function CycleProgress({ cycle }: { cycle: Cycle }) {
         <span className="text-sm font-medium text-fg tabular">{formatPercent(p.progress)}</span>
       </div>
       <ProgressBar value={p.progress} label={`Progresso do ciclo ${cycle.cycleNumber}`} />
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-3 lg:grid-cols-6">
         {items.map((i) => (
           <div key={i.label}>
             <dt className="text-fg-3">{i.label}</dt>
@@ -33,6 +35,7 @@ export function CycleProgress({ cycle }: { cycle: Cycle }) {
       <p className="text-xs text-fg-3">
         Pagamento: {formatDateBR(cycle.paymentDate)} · Limite inicial {cycle.baseLimit}
         {cycle.bonusTotal ? ` + ${cycle.bonusTotal} bônus` : ""}
+        {cycle.extraAllowance ? ` · aceita até a ${p.maxAllowed}ª sessão (${cycle.extraAllowance} extras)` : ""}
         {p.isFull ? " · ciclo completo" : ""}
       </p>
       {inferred > 0 ? (

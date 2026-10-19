@@ -9,11 +9,13 @@ import { Alert, Button, Field, Input, Textarea } from "@/components/ui/primitive
 /** Registers a payment (opens a new cycle) or edits an existing cycle. */
 export function PaymentForm({
   defaultLimit,
+  defaultExtra,
   today,
   cycle,
   onDone,
 }: {
   defaultLimit: number;
+  defaultExtra: number;
   today: string;
   cycle?: Cycle;
   onDone: () => void;
@@ -50,11 +52,26 @@ export function PaymentForm({
         <Input id="baseLimit" name="baseLimit" type="number" min={1} max={1000} required defaultValue={cycle?.baseLimit ?? defaultLimit} />
       </Field>
       <Field
+        label="Sessões extras permitidas"
+        htmlFor="extraAllowance"
+        error={errors.extraAllowance}
+        hint="Aceitas além do limite, sem bônus (ex.: 40 + 3 = até a 43ª)."
+      >
+        <Input
+          id="extraAllowance"
+          name="extraAllowance"
+          type="number"
+          min={0}
+          max={100}
+          required
+          defaultValue={cycle?.extraAllowance ?? defaultExtra}
+        />
+      </Field>
+      <Field
         label="Início do ciclo (opcional)"
         htmlFor="startDate"
         error={errors.startDate}
         hint="Não precisa coincidir com o pagamento."
-        className="sm:col-span-2"
       >
         <Input id="startDate" name="startDate" type="date" defaultValue={cycle?.startDate ?? ""} />
       </Field>

@@ -13,11 +13,13 @@ export async function loadFormOptions(): Promise<FormOptions> {
       id: c.id,
       cycleNumber: c.cycleNumber,
       totalLimit: c.totalLimit,
+      maxAllowed: c.maxAllowed,
       maxNumber: c.maxNumber,
       registered: Math.max(c.completedCount + c.pendingCount, c.maxNumber),
     })),
     categories: categories.map((c) => ({ id: c.id, name: c.name, color: c.color, active: c.active })),
     defaultCycleLimit: settings.defaultCycleLimit,
+    defaultExtraAllowance: settings.defaultExtraAllowance,
     today: todayIso(settings.timeZone),
   };
 }

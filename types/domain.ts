@@ -43,6 +43,10 @@ export type Cycle = {
   maxNumber: number;
   /** Highest completed session number in the cycle. */
   maxCompletedNumber: number;
+  /** Extra sessions accepted beyond the paid limit (default 3). */
+  extraAllowance: number;
+  /** Highest session number accepted: totalLimit + extraAllowance. */
+  maxAllowed: number;
   firstSessionDate: IsoDate | null;
   lastSessionDate: IsoDate | null;
   notes: string | null;
@@ -78,6 +82,7 @@ export type AppSettings = {
   surgeryEventId: number | null;
   surgeryDate: IsoDate | null;
   defaultCycleLimit: number;
+  defaultExtraAllowance: number;
   timeZone: string;
 };
 

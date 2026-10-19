@@ -68,8 +68,20 @@ d("database integration", async () => {
     expect(reopened?.completedAt).toBeNull();
   });
 
+  it("accepts up to 43 sessions in a default 40-session cycle", async () => {
+    const c = await cycles.registerPayment({ paymentDate: "2026-04-20", baseLimit: 40 });
+    const created = await cycles.getCycle(c.id);
+    expect(created).toMatchObject({ baseLimit: 40, extraAllowance: 3, totalLimit: 40, maxAllowed: 43 });
+    await sessions.createSession({ cycleId: c.id, numberInCycle: 43, sessionDate: "2026-04-21", status: "completed" });
+    await expect(
+      sessions.createSession({ cycleId: c.id, numberInCycle: 44, sessionDate: "2026-04-22", status: "pending" }),
+    ).rejects.toThrow(/máximo/);
+    // Lowering the allowance below a session in use is refused.
+    await expect(cycles.updateCycle({ id: c.id, baseLimit: 40, extraAllowance: 2 })).rejects.toBeDefined();
+  });
+
   it("enforces the cycle limit and counts bonuses once", async () => {
-    const small = await cycles.registerPayment({ paymentDate: "2026-05-01", baseLimit: 2 });
+    const small = await cycles.registerPayment({ paymentDate: "2026-05-01", baseLimit: 2, extraAllowance: 0 });
     await sessions.createSession({ cycleId: small.id, sessionDate: "2026-05-02", status: "completed" });
     await sessions.createSession({ cycleId: small.id, sessionDate: "2026-05-03", status: "completed" });
     await expect(
@@ -78,14 +90,14 @@ d("database integration", async () => {
 
     await cycles.createBonus({ cycleId: small.id, quantity: 3, grantedOn: "2026-05-04", reason: "zerar o eletro" });
     const c = await cycles.getCycle(small.id);
-    expect(c).toMatchObject({ baseLimit: 2, bonusTotal: 3, totalLimit: 5 });
+    expect(c).toMatchObject({ baseLimit: 2, bonusTotal: 3, totalLimit: 5, maxAllowed: 5 });
     await sessions.createSession({ cycleId: small.id, sessionDate: "2026-05-05", status: "pending" });
     expect((await cycles.getCycle(small.id))?.totalLimit).toBe(5);
   });
 
   it("refuses to drop a limit or bonus already in use", async () => {
     const first = (await cycles.listCycles())[0]; // sessions 1 and 2
-    await expect(cycles.updateCycle({ id: first.id, baseLimit: 1 })).rejects.toSatisfy(
+    await expect(cycles.updateCycle({ id: first.id, baseLimit: 1, extraAllowance: 0 })).rejects.toSatisfy(
       (e: unknown) => toUserMessage(e).includes("limite"),
     );
     const c = (await cycles.getCurrentCycle())!; // base 2 + bonus 3, session 3 in use

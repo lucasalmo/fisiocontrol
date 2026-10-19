@@ -16,6 +16,8 @@ type CycleRow = {
   pending_count: number;
   max_number: number;
   max_completed_number: number;
+  extra_allowance: number;
+  max_allowed: number;
   first_session_date: string | null;
   last_session_date: string | null;
   notes: string | null;
@@ -35,6 +37,8 @@ function mapCycle(r: CycleRow): Cycle {
     pendingCount: r.pending_count,
     maxNumber: r.max_number,
     maxCompletedNumber: r.max_completed_number,
+    extraAllowance: r.extra_allowance,
+    maxAllowed: r.max_allowed,
     firstSessionDate: r.first_session_date,
     lastSessionDate: r.last_session_date,
     notes: r.notes,
@@ -43,7 +47,7 @@ function mapCycle(r: CycleRow): Cycle {
 }
 
 const CYCLE_COLUMNS = `id, cycle_number, payment_date, start_date, base_limit, bonus_total, total_limit,
-  completed_count, pending_count, max_number, max_completed_number, first_session_date, last_session_date, notes, created_at`;
+  completed_count, pending_count, max_number, max_completed_number, extra_allowance, max_allowed, first_session_date, last_session_date, notes, created_at`;
 
 export async function listCycles(tx: Queryable = db): Promise<Cycle[]> {
   const { rows } = await tx.query<CycleRow>(`SELECT ${CYCLE_COLUMNS} FROM cycle_overview ORDER BY cycle_number`);
@@ -70,14 +74,23 @@ export async function lockCycles(tx: Queryable) {
 /** Inserts a new cycle with the next number. Must run inside a transaction. */
 export async function insertCycle(
   tx: Queryable,
-  input: { paymentDate: string | null; startDate: string | null; baseLimit: number; notes: string | null },
+  input: {
+    paymentDate: string | null;
+    startDate: string | null;
+    baseLimit: number;
+    notes: string | null;
+    /** Omitted: uses the default from settings. */
+    extraAllowance?: number;
+  },
 ): Promise<{ id: number; cycleNumber: number }> {
   await lockCycles(tx);
   const { rows } = await tx.query<{ id: number; cycle_number: number }>(
-    `INSERT INTO payment_cycles (cycle_number, payment_date, start_date, base_limit, notes)
-     SELECT COALESCE(MAX(cycle_number), 0) + 1, $1, $2, $3, $4 FROM payment_cycles
+    `INSERT INTO payment_cycles (cycle_number, payment_date, start_date, base_limit, notes, extra_allowance)
+     SELECT COALESCE(MAX(cycle_number), 0) + 1, $1, $2, $3, $4,
+            COALESCE($5::int, (SELECT default_extra_allowance FROM app_settings WHERE id = 1), 3)
+       FROM payment_cycles
      RETURNING id, cycle_number`,
-    [input.paymentDate, input.startDate, input.baseLimit, input.notes],
+    [input.paymentDate, input.startDate, input.baseLimit, input.notes, input.extraAllowance ?? null],
   );
   return { id: rows[0].id, cycleNumber: rows[0].cycle_number };
 }
@@ -93,6 +106,7 @@ export async function registerPayment(input: PaymentInput) {
       startDate: input.startDate ?? null,
       baseLimit: input.baseLimit,
       notes: input.notes ?? null,
+      extraAllowance: input.extraAllowance,
     }),
   );
 }
@@ -100,8 +114,10 @@ export async function registerPayment(input: PaymentInput) {
 export async function updateCycle(input: CycleUpdate) {
   // The database trigger refuses a limit lower than the highest session number.
   const { rowCount } = await db.query(
-    `UPDATE payment_cycles SET payment_date = $2, start_date = $3, base_limit = $4, notes = $5 WHERE id = $1`,
-    [input.id, input.paymentDate ?? null, input.startDate ?? null, input.baseLimit, input.notes ?? null],
+    `UPDATE payment_cycles
+        SET payment_date = $2, start_date = $3, base_limit = $4, notes = $5, extra_allowance = $6
+      WHERE id = $1`,
+    [input.id, input.paymentDate ?? null, input.startDate ?? null, input.baseLimit, input.notes ?? null, input.extraAllowance],
   );
   if (!rowCount) throw new UserFacingError("Ciclo não encontrado.");
 }

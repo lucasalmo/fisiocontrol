@@ -7,6 +7,7 @@ type SettingsRow = {
   surgery_event_id: number | null;
   surgery_date: IsoDate | null;
   default_cycle_limit: number;
+  default_extra_allowance: number;
   time_zone: string;
 };
 
@@ -14,12 +15,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   surgeryEventId: null,
   surgeryDate: null,
   defaultCycleLimit: 40,
+  defaultExtraAllowance: 3,
   timeZone: "America/Sao_Paulo",
 };
 
 export async function getSettings(tx: Queryable = db): Promise<AppSettings> {
   const { rows } = await tx.query<SettingsRow>(
-    `SELECT s.surgery_event_id, e.event_date AS surgery_date, s.default_cycle_limit, s.time_zone
+    `SELECT s.surgery_event_id, e.event_date AS surgery_date, s.default_cycle_limit, s.default_extra_allowance, s.time_zone
        FROM app_settings s
        LEFT JOIN events e ON e.id = s.surgery_event_id
       WHERE s.id = 1`,
@@ -30,6 +32,7 @@ export async function getSettings(tx: Queryable = db): Promise<AppSettings> {
     surgeryEventId: r.surgery_event_id,
     surgeryDate: r.surgery_date,
     defaultCycleLimit: r.default_cycle_limit,
+    defaultExtraAllowance: r.default_extra_allowance,
     timeZone: r.time_zone,
   };
 }
@@ -75,13 +78,18 @@ export async function setReferenceSurgeryEvent(eventId: number): Promise<void> {
   });
 }
 
-export async function updateGeneralSettings(input: { defaultCycleLimit: number; timeZone: string }) {
+export async function updateGeneralSettings(input: {
+  defaultCycleLimit: number;
+  defaultExtraAllowance: number;
+  timeZone: string;
+}) {
+  // Applies to cycles created from now on; existing cycles keep their values.
   await withTransaction(async (tx) => {
     await ensureSettingsRow(tx);
-    await tx.query(`UPDATE app_settings SET default_cycle_limit = $1, time_zone = $2 WHERE id = 1`, [
-      input.defaultCycleLimit,
-      input.timeZone,
-    ]);
+    await tx.query(
+      `UPDATE app_settings SET default_cycle_limit = $1, time_zone = $2, default_extra_allowance = $3 WHERE id = 1`,
+      [input.defaultCycleLimit, input.timeZone, input.defaultExtraAllowance],
+    );
   });
 }
 

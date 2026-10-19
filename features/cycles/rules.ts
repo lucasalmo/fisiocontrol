@@ -5,6 +5,8 @@
  */
 
 export const DEFAULT_CYCLE_LIMIT = 40;
+/** Sessions accepted beyond the paid limit: a 40-session cycle goes up to 43. */
+export const DEFAULT_EXTRA_ALLOWANCE = 3;
 
 export type CycleCounts = {
   baseLimit: number;
@@ -15,10 +17,19 @@ export type CycleCounts = {
   maxNumber?: number;
   /** Highest completed session number. */
   maxCompletedNumber?: number;
+  /** Extra sessions accepted beyond the paid limit. */
+  extraAllowance?: number;
 };
 
 export type CycleProgress = {
+  /** Paid limit: base + bonuses. */
   totalLimit: number;
+  /** Highest session number accepted: paid limit + extras. */
+  maxAllowed: number;
+  /** Sessions done beyond the paid limit (within the extras). */
+  excess: number;
+  /** Extra slots still unused. */
+  extrasAvailable: number;
   completed: number;
   pending: number;
   /** Sessions registered (completed + pending). */
@@ -27,7 +38,7 @@ export type CycleProgress = {
   used: number;
   /** Sessions considered done (count or highest completed number). */
   done: number;
-  /** Slots not yet used: can still be scheduled. */
+  /** Paid slots not yet used: can still be scheduled. */
   available: number;
   /** Paid sessions not yet performed: total - done. */
   balance: number;
@@ -42,6 +53,7 @@ export function totalLimit(baseLimit: number, bonuses: readonly { quantity: numb
 
 export function computeCycleProgress(c: CycleCounts): CycleProgress {
   const total = c.baseLimit + c.bonusTotal;
+  const maxAllowed = total + (c.extraAllowance ?? 0);
   const registered = c.completedCount + c.pendingCount;
   // A history imported from the middle of a cycle (e.g. sessions 35–41) still
   // used slots 1–34, so the highest number wins over the count.
@@ -49,6 +61,9 @@ export function computeCycleProgress(c: CycleCounts): CycleProgress {
   const done = Math.max(c.completedCount, c.maxCompletedNumber ?? 0);
   return {
     totalLimit: total,
+    maxAllowed,
+    excess: Math.max(0, done - total),
+    extrasAvailable: Math.max(0, maxAllowed - Math.max(used, total)),
     completed: c.completedCount,
     pending: c.pendingCount,
     registered,
@@ -57,7 +72,7 @@ export function computeCycleProgress(c: CycleCounts): CycleProgress {
     available: Math.max(0, total - used),
     balance: Math.max(0, total - done),
     progress: total > 0 ? Math.min(1, done / total) : 0,
-    isFull: used >= total,
+    isFull: used >= maxAllowed,
   };
 }
 

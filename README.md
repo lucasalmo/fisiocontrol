@@ -56,6 +56,7 @@ npm run db:status    # lista aplicadas / pendentes
 | `0001_initial_schema.sql` | Tabelas, chaves, índices, triggers de integridade e a view `cycle_overview`. |
 | `0002_seed_defaults.sql` | 13 categorias, marcos (30/60/90/180/365), configurações e a cirurgia em 31/03/2026. |
 | `0003_cycle_overview_max_completed.sql` | Suporte a ciclos importados de histórico parcial. |
+| `0004_cycle_extra_allowance.sql` | Sessões extras por ciclo (padrão 3: um ciclo de 40 aceita até a 43ª). |
 
 Nunca edite uma migration já aplicada — crie uma nova (o script avisa se o checksum mudar).
 
@@ -108,6 +109,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@fisio-pg:5432/fisio_test npm test
 - **Contador desde a cirurgia** — calculado a partir de duas datas de calendário (nunca de um cronômetro). Dia da cirurgia = dia 0 decorrido; a contagem inclusiva aparece separada como “Nº dia do calendário pós-operatório”. Mostra semanas + dias, meses + dias, marcos alcançados, próximo marco e dias restantes. Atualiza sozinho à meia-noite local e ao voltar para a aba. Data futura mostra “dias para a cirurgia”.
 - **Sessões** — CRUD, conclusão/reabertura em um clique (atualização otimista), busca, filtros por status/categoria/ciclo/período, ordenação, paginação e exportação CSV. Número no ciclo independente do status; número global atribuído uma vez e nunca renumerado. Número duplicado gera erro com sugestão do próximo livre, aplicada só com confirmação.
 - **Ciclos e pagamentos** — registrar pagamento abre um ciclo novo numa transação, sem tocar nos anteriores. Limite configurável por ciclo (padrão 40). Exclusão só de ciclos vazios.
+- **Sessões extras** — cada ciclo aceita sessões além do limite pago sem precisar de bônus (padrão 3: até a 43ª sessão num ciclo de 40). Saldo e progresso continuam calculados sobre o limite pago (40 + bônus); as sessões acima dele aparecem como “excedentes”. O valor é gravado em cada ciclo ao ser criado (alterar o padrão nas configurações não muda ciclos antigos) e pode ser editado por ciclo.
 - **Bônus** — cada bônus é uma linha; o limite total é sempre `limite inicial + SOMA(bônus)`, calculado pela view, portanto nunca é contado duas vezes.
 - **Eventos** — cirurgia, feriado, pausa, retorno e personalizado (pagamento e bônus têm fluxo próprio). Eventos nunca viram sessões. Editar a cirurgia de referência move o contador.
 - **Linha do tempo** e **calendário** — sessões, cirurgia, pagamentos, bônus e eventos, com filtros por tipo/período, cores por categoria, navegação por teclado no calendário e cadastro direto a partir de uma data.
@@ -118,7 +120,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@fisio-pg:5432/fisio_test npm test
 ### Regras de integridade no banco
 
 - `UNIQUE (cycle_id, number_in_cycle)` e `UNIQUE (global_number)`.
-- Trigger impede sessão com número acima do limite do ciclo (base + bônus); outro trigger impede reduzir o limite ou remover um bônus já em uso.
+- Trigger impede sessão com número acima do máximo do ciclo (base + bônus + extras); outro trigger impede reduzir o limite, as extras ou remover um bônus já em uso.
 - `ON DELETE RESTRICT` protege ciclos e categorias com sessões.
 - Datas de calendário em `DATE` (lidas como texto `AAAA-MM-DD`, sem conversão de fuso); instantes em `TIMESTAMPTZ`.
 - Chaves de importação (`import_key`) garantem idempotência.
@@ -133,6 +135,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@fisio-pg:5432/fisio_test npm test
 | `[ ] ==== PAGAMENTO + 40 SESSÕES 26/08 ====` | Novo ciclo com limite 40; a numeração local reinicia. |
 | `[ ] => Sexta 05/06 => Feriado` | Feriado (não é sessão). |
 | `[ ] => Ganhei 3 sessões por zerar o eletro` | Bônus de 3 sessões no ciclo corrente (sem data: usa a da linha anterior, com aviso). |
+| `[ ] 19 -` | Sessão pendente sem data: aparece na prévia com aviso e não é importada (agende depois pelo app). |
 
 O **ano de referência** é o ano da primeira data sem ano. Depois disso, o ano avança pela ordem cronológica; cada virada é sinalizada (como informação, se confirmada pelo dia da semana; como aviso, se não). Datas com ano explícito (`16/10/2026`) também são aceitas. Categorias desconhecidas curtas podem ser criadas automaticamente (opção na tela).
 

@@ -101,7 +101,15 @@ export function MilestonesForm({
   );
 }
 
-export function GeneralSettingsForm({ defaultCycleLimit, timeZone }: { defaultCycleLimit: number; timeZone: string }) {
+export function GeneralSettingsForm({
+  defaultCycleLimit,
+  defaultExtraAllowance,
+  timeZone,
+}: {
+  defaultCycleLimit: number;
+  defaultExtraAllowance: number;
+  timeZone: string;
+}) {
   const { pending, run } = useAction();
   const [errors, setErrors] = useState<Record<string, string>>({});
   return (
@@ -111,6 +119,22 @@ export function GeneralSettingsForm({ defaultCycleLimit, timeZone }: { defaultCy
     >
       <Field label="Limite padrão de sessões por ciclo" htmlFor="defaultCycleLimit" error={errors.defaultCycleLimit}>
         <Input id="defaultCycleLimit" name="defaultCycleLimit" type="number" min={1} max={1000} defaultValue={defaultCycleLimit} className="w-32" />
+      </Field>
+      <Field
+        label="Sessões extras por ciclo"
+        htmlFor="defaultExtraAllowance"
+        error={errors.defaultExtraAllowance}
+        hint="Vale para ciclos novos."
+      >
+        <Input
+          id="defaultExtraAllowance"
+          name="defaultExtraAllowance"
+          type="number"
+          min={0}
+          max={100}
+          defaultValue={defaultExtraAllowance}
+          className="w-32"
+        />
       </Field>
       <Field label="Fuso horário" htmlFor="timeZone" error={errors.timeZone} hint="Define “hoje” no servidor.">
         <Input id="timeZone" name="timeZone" defaultValue={timeZone} className="w-56" list="tz-list" />

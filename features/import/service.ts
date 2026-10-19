@@ -34,7 +34,10 @@ export type PreviewSegment = {
   cycleId: number | null;
   cycleNumber: number;
   baseLimit: number;
+  /** Paid limit: base + bonuses. */
   limit: number;
+  /** Highest number accepted: paid limit + extras. */
+  maxAllowed: number;
 };
 
 export type ImportPreview = {
@@ -85,10 +88,11 @@ async function analyze(tx: Queryable, text: string, options: ImportOptions): Pro
     referenceYear: options.referenceYear,
     categories: categories.map((c) => ({ id: c.id, name: c.name })),
     defaultCycleLimit: settings.defaultCycleLimit,
+    initialBaseLimit: options.initialBaseLimit,
+    extraAllowance: settings.defaultExtraAllowance,
     excludedLines: options.excludedLines,
     today: todayIso(settings.timeZone),
   });
-  if (options.initialBaseLimit) parsed.segments[0].baseLimit = options.initialBaseLimit;
 
   const [sessionsRes, eventsRes, bonusesRes] = await Promise.all([
     tx.query<ExistingSession>(`SELECT id, cycle_id, number_in_cycle, session_date, import_key FROM sessions`),
@@ -118,7 +122,16 @@ async function analyze(tx: Queryable, text: string, options: ImportOptions): Pro
       existing = cycles.find((c) => seg.paymentDate && c.paymentDate === seg.paymentDate) ?? null;
     } else {
       if (!hasContent) {
-        return { index: 0, label: "—", action: "none", cycleId: null, cycleNumber: 0, baseLimit: seg.baseLimit, limit: seg.baseLimit };
+        return {
+          index: 0,
+          label: "—",
+          action: "none",
+          cycleId: null,
+          cycleNumber: 0,
+          baseLimit: seg.baseLimit,
+          limit: seg.baseLimit,
+          maxAllowed: seg.baseLimit + seg.extraAllowance,
+        };
       }
       // Re-import: a session already stored tells us which cycle this block is.
       for (const l of segLines) {
@@ -156,6 +169,7 @@ async function analyze(tx: Queryable, text: string, options: ImportOptions): Pro
         cycleNumber: existing.cycleNumber,
         baseLimit: existing.baseLimit,
         limit: existing.totalLimit + newBonus,
+        maxAllowed: existing.maxAllowed + newBonus,
       };
     }
     plannedNumber += 1;
@@ -167,6 +181,7 @@ async function analyze(tx: Queryable, text: string, options: ImportOptions): Pro
       cycleNumber: plannedNumber,
       baseLimit: seg.baseLimit,
       limit: seg.baseLimit + seg.bonusTotal,
+      maxAllowed: seg.baseLimit + seg.bonusTotal + seg.extraAllowance,
     };
   });
 
@@ -180,7 +195,10 @@ async function analyze(tx: Queryable, text: string, options: ImportOptions): Pro
 
     switch (data.kind) {
       case "session": {
-        if (!data.date) break;
+        if (!data.date) {
+          line.db = "skip"; // undated pending placeholder
+          break;
+        }
         const dup = existingByKey.get(sessionKey(data.date, data.number));
         if (dup) {
           line.db = "duplicate";
@@ -192,10 +210,10 @@ async function analyze(tx: Queryable, text: string, options: ImportOptions): Pro
               level: "error",
               message: `O ciclo ${seg.cycleNumber} já tem a sessão ${data.number} em outra data (${clash.session_date.split("-").reverse().join("/")}).`,
             });
-          } else if (data.number > seg.limit) {
+          } else if (data.number > seg.maxAllowed) {
             addIssue(line, {
               level: "error",
-              message: `Sessão ${data.number} ultrapassa o limite do ciclo ${seg.cycleNumber} (${seg.limit}).`,
+              message: `Sessão ${data.number} ultrapassa o máximo do ciclo ${seg.cycleNumber} (${seg.maxAllowed}, incluindo as extras).`,
             });
           }
         }

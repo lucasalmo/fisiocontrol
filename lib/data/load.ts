@@ -1,5 +1,6 @@
 import "server-only";
 import { unstable_rethrow } from "next/navigation";
+import { connection } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
 import { logServerError, toUserMessage } from "@/lib/db/errors";
 
@@ -11,6 +12,8 @@ export type Loaded<T> = { ok: true; data: T } | { ok: false; error: string };
  */
 export async function load<T>(context: string, fn: () => Promise<T>): Promise<Loaded<T>> {
   await requireAuth();
+  // Private data and "today" are always computed per request, never prerendered.
+  await connection();
   try {
     return { ok: true, data: await fn() };
   } catch (error) {

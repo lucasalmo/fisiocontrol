@@ -96,7 +96,13 @@ export function CycleCard({
       ) : null}
 
       <Dialog open={editing} onClose={() => setEditing(false)} title={`Editar ciclo ${cycle.cycleNumber}`} size="lg">
-        <PaymentForm defaultLimit={cycle.baseLimit} today={options.today} cycle={cycle} onDone={() => setEditing(false)} />
+        <PaymentForm
+          defaultLimit={cycle.baseLimit}
+          defaultExtra={cycle.extraAllowance}
+          today={options.today}
+          cycle={cycle}
+          onDone={() => setEditing(false)}
+        />
       </Dialog>
       <Dialog open={addingBonus} onClose={() => setAddingBonus(false)} title="Registrar sessões bônus" size="lg">
         <BonusForm cycles={options.cycles} today={options.today} defaultCycleId={cycle.id} onDone={() => setAddingBonus(false)} />

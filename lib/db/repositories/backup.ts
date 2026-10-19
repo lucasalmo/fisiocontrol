@@ -35,6 +35,8 @@ const backupSchema = z.object({
         payment_date: nullableDate,
         start_date: nullableDate,
         base_limit: z.number().int().positive(),
+        // Backups made before migration 0004 have no allowance: keep the default.
+        extra_allowance: z.number().int().min(0).max(100).default(3),
         notes: z.string().nullable(),
         created_at: ts,
         updated_at: ts,
@@ -87,6 +89,7 @@ const backupSchema = z.object({
         id: z.literal(1),
         surgery_event_id: id.nullable(),
         default_cycle_limit: z.number().int().positive(),
+        default_extra_allowance: z.number().int().min(0).max(100).default(3),
         time_zone: z.string().min(1),
         updated_at: ts,
       }),

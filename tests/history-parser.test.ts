@@ -86,9 +86,23 @@ describe("history parser — sessions", () => {
     expect(parsed.summary.errors).toBe(1);
   });
 
-  it("rejects sessions without date", () => {
-    const parsed = dataOf("[ ] 5 - Intensidade");
+  it("rejects completed sessions without date", () => {
+    const parsed = dataOf("[✓] 5 - Intensidade");
     expect(parsed.lines[0].state).toBe("invalid");
+  });
+
+  it("only warns about pending placeholders without date", () => {
+    const parsed = dataOf(["[✓] 17 - Sexta 16/10", "[ ] 18 - Segunda 19/10", "[ ] 19 -", "[ ] 20 -"].join("\n"));
+    expect(parsed.summary.errors).toBe(0);
+    expect(parsed.lines[2].issues[0]).toMatchObject({ level: "warning" });
+    expect(parsed.lines[2].data).toMatchObject({ kind: "session", number: 19, date: null, completed: false });
+  });
+
+  it("accepts leading zeros, a missing dash and fractions in notes", () => {
+    expect(only("[✓] 01 - Quarta 13/05", "session").data).toMatchObject({ number: 1, date: "2026-05-13" });
+    expect(only("[✓] 43 Sexta 21/08 - volume", "session").data).toMatchObject({ number: 43, categoryName: "Volume" });
+    const half = only("[✓] 39 - Quarta 12/08 - 1/2 volume + máquinas", "session").data;
+    expect(half).toMatchObject({ date: "2026-08-12", categoryId: null, notes: "1/2 volume + máquinas" });
   });
 });
 
@@ -132,10 +146,30 @@ describe("history parser — events", () => {
   it("lets bonuses raise the limit for the same cycle", () => {
     const lines = ["[ ] => Ganhei 3 sessões por zerar o eletro 01/08"];
     for (let n = 1; n <= 43; n++) lines.push(`[✓] ${n} - 02/08`);
+    const strict = { extraAllowance: 0 } as never;
+    expect(dataOf(lines.join("\n"), strict).summary.errors).toBe(0);
+    const over = dataOf([...lines, "[ ] 44 - 03/08"].join("\n"), strict);
+    expect(over.lines.at(-1)?.state).toBe("invalid");
+  });
+
+  it("accepts 3 extra sessions beyond the limit by default (40 → 43)", () => {
+    const lines: string[] = [];
+    for (let n = 1; n <= 43; n++) lines.push(`[✓] ${n} - 02/08`);
     const parsed = dataOf(lines.join("\n"));
     expect(parsed.summary.errors).toBe(0);
+    expect(parsed.segments[0]).toMatchObject({ baseLimit: 40, extraAllowance: 3 });
+    expect(parsed.lines[40].issues.some((i) => i.message.includes("excedente"))).toBe(true);
     const over = dataOf([...lines, "[ ] 44 - 03/08"].join("\n"));
     expect(over.lines.at(-1)?.state).toBe("invalid");
+    expect(over.lines.at(-1)?.issues[0].message).toContain("43 = 40 + 3 extras");
+  });
+
+  it("combines bonus and extras: 40 + 3 bonus + 3 extras accepts session 44", () => {
+    const lines = ["== PAGAMENTO + 40 SESSÕES 01/08 =="];
+    for (let n = 1; n <= 40; n++) lines.push(`[✓] ${n} - 02/08`);
+    lines.push("[ ] => Ganhei 3 sessões por zerar o eletro");
+    for (let n = 41; n <= 44; n++) lines.push(`[✓] ${n} - 03/08`);
+    expect(dataOf(lines.join("\n")).summary.errors).toBe(0);
   });
 
   it("ignores blank and decorative lines and preserves order", () => {

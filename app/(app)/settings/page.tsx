@@ -58,7 +58,11 @@ async function SettingsContent() {
       <Card id="geral">
         <CardHeader title="Configurações gerais" icon={<SlidersHorizontal className="size-4" />} />
         <div className={section}>
-          <GeneralSettingsForm defaultCycleLimit={settings.defaultCycleLimit} timeZone={settings.timeZone} />
+          <GeneralSettingsForm
+            defaultCycleLimit={settings.defaultCycleLimit}
+            defaultExtraAllowance={settings.defaultExtraAllowance}
+            timeZone={settings.timeZone}
+          />
         </div>
       </Card>
       <Card id="categorias">

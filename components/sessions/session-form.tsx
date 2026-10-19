@@ -28,7 +28,8 @@ export function SessionForm({
   const current = cycles.at(-1);
   const [cycleId, setCycleId] = useState<number | undefined>(session?.cycleId ?? current?.id);
   const selected = cycles.find((c) => c.id === cycleId);
-  const nextNumber = selected && selected.maxNumber + 1 <= selected.totalLimit ? selected.maxNumber + 1 : null;
+  const nextNumber = selected && selected.maxNumber + 1 <= selected.maxAllowed ? selected.maxNumber + 1 : null;
+  const isExtra = nextNumber !== null && selected !== undefined && nextNumber > selected.totalLimit;
 
   if (!cycles.length) {
     return (
@@ -75,6 +76,7 @@ export function SessionForm({
           {[...cycles].reverse().map((c) => (
             <option key={c.id} value={c.id}>
               Ciclo {c.cycleNumber} — {c.registered}/{c.totalLimit} sessões
+              {c.maxAllowed > c.totalLimit ? ` (+${c.maxAllowed - c.totalLimit} extras)` : ""}
             </option>
           ))}
         </Select>
@@ -83,7 +85,13 @@ export function SessionForm({
         label="Número no ciclo"
         htmlFor="numberInCycle"
         error={errors.numberInCycle}
-        hint={session ? `Nº global: ${session.globalNumber ?? "—"}` : nextNumber ? `Vazio = automático (${nextNumber})` : "Ciclo completo"}
+        hint={
+          session
+            ? `Nº global: ${session.globalNumber ?? "—"}`
+            : nextNumber
+              ? `Vazio = automático (${nextNumber}${isExtra ? ", sessão extra" : ""})`
+              : "Ciclo completo"
+        }
       >
         <Input
           ref={numberRef}

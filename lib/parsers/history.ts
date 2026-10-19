@@ -66,6 +66,8 @@ export type ParsedSegment = {
   paymentDate: IsoDate | null;
   baseLimit: number;
   bonusTotal: number;
+  /** Extra sessions accepted beyond the paid limit (base + bonuses). */
+  extraAllowance: number;
   sessionLines: number[];
 };
 
@@ -75,6 +77,10 @@ export type ParseOptions = {
   /** Known categories, used for matching (accent/case insensitive). */
   categories?: { id: number; name: string }[];
   defaultCycleLimit?: number;
+  /** Limit of the block before the first payment (defaults to defaultCycleLimit). */
+  initialBaseLimit?: number;
+  /** Extra sessions accepted beyond the paid limit in each cycle (default 3). */
+  extraAllowance?: number;
   /** Line numbers (1-based) the user chose to skip. */
   excludedLines?: number[];
   /** Today's date, used to flag completed sessions in the future. */
@@ -378,12 +384,21 @@ function resolveDate(
 export function parseHistory(text: string, options: ParseOptions): ParsedHistory {
   const categories = options.categories ?? [];
   const defaultLimit = options.defaultCycleLimit ?? 40;
+  const extraAllowance = options.extraAllowance ?? 3;
   const excluded = new Set(options.excludedLines ?? []);
   const rawLines = text.replace(/\r\n?/g, "\n").split("\n");
 
   const lines: ParsedLine[] = [];
   const segments: ParsedSegment[] = [
-    { index: 0, paymentLine: null, paymentDate: null, baseLimit: defaultLimit, bonusTotal: 0, sessionLines: [] },
+    {
+      index: 0,
+      paymentLine: null,
+      paymentDate: null,
+      baseLimit: options.initialBaseLimit ?? defaultLimit,
+      bonusTotal: 0,
+      extraAllowance,
+      sessionLines: [],
+    },
   ];
   let previousDate: IsoDate | null = null;
   let lastSessionLine: ParsedLine | null = null;
@@ -422,7 +437,14 @@ export function parseHistory(text: string, options: ParseOptions): ParsedHistory
 
     switch (lexed.kind) {
       case "session": {
-        if (!lexed.date) line.issues.push({ level: "error", message: "Sessão sem data. Use o formato DD/MM." });
+        if (!lexed.date) {
+          // A pending placeholder ("[ ] 19 -") is skipped; a completed one needs a date.
+          line.issues.push(
+            lexed.completed
+              ? { level: "error", message: "Sessão concluída sem data. Use o formato DD/MM." }
+              : { level: "warning", message: "Sessão pendente sem data: não será importada. Agende-a depois pelo app." },
+          );
+        }
         const cat = matchCategory(lexed.tail, categories);
         if (cat.newCategory) {
           line.issues.push({ level: "info", message: `Nova categoria “${cat.categoryName}” será criada.` });
@@ -478,7 +500,15 @@ export function parseHistory(text: string, options: ParseOptions): ParsedHistory
         }
         line.data = { kind: "payment", date, baseLimit, limitFromText };
         const index = segments.length;
-        segments.push({ index, paymentLine: lineNumber, paymentDate: date, baseLimit, bonusTotal: 0, sessionLines: [] });
+        segments.push({
+          index,
+          paymentLine: lineNumber,
+          paymentDate: date,
+          baseLimit,
+          bonusTotal: 0,
+          extraAllowance,
+          sessionLines: [],
+        });
         line.segment = index;
         break;
       }
@@ -533,14 +563,22 @@ export function parseHistory(text: string, options: ParseOptions): ParsedHistory
 
   // Limit checks need the bonuses of the whole segment.
   for (const seg of segments) {
-    const limit = seg.baseLimit + seg.bonusTotal;
+    const paid = seg.baseLimit + seg.bonusTotal;
+    const max = paid + seg.extraAllowance;
     for (const ln of seg.sessionLines) {
       const line = lines[ln - 1];
       const data = line.data as { number: number };
-      if (data.number > limit) {
+      if (data.number > max) {
         line.issues.push({
           level: "error",
-          message: `Sessão ${data.number} ultrapassa o limite do ciclo (${limit} = ${seg.baseLimit} + ${seg.bonusTotal} bônus).`,
+          message: `Sessão ${data.number} ultrapassa o máximo do ciclo (${max} = ${seg.baseLimit}${
+            seg.bonusTotal ? ` + ${seg.bonusTotal} bônus` : ""
+          } + ${seg.extraAllowance} extras).`,
+        });
+      } else if (data.number > paid) {
+        line.issues.push({
+          level: "info",
+          message: `Sessão excedente: acima do limite de ${paid} sessões, dentro das ${seg.extraAllowance} extras permitidas.`,
         });
       }
     }

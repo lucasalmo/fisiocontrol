@@ -304,6 +304,7 @@ export function ImportHistory({ defaultYear }: { defaultYear: number }) {
                   .map((s) => (
                     <span key={s.index} className="rounded-lg border border-border px-2 py-1">
                       Bloco {s.index + 1}: <strong className="font-medium text-fg">{s.label}</strong> · limite {s.limit}
+                      {s.maxAllowed > s.limit ? ` (aceita até ${s.maxAllowed})` : ""}
                     </span>
                   ))}
               </div>

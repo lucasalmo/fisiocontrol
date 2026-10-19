@@ -39,7 +39,12 @@ export function CreateDialogs({
         description="Abre um novo ciclo de sessões."
         size="lg"
       >
-        <PaymentForm defaultLimit={options.defaultCycleLimit} today={day} onDone={onClose} />
+        <PaymentForm
+          defaultLimit={options.defaultCycleLimit}
+          defaultExtra={options.defaultExtraAllowance}
+          today={day}
+          onDone={onClose}
+        />
       </Dialog>
       <Dialog open={open === "bonus"} onClose={onClose} title="Registrar sessões bônus" size="lg">
         {options.cycles.length ? (

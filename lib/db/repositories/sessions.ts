@@ -140,8 +140,8 @@ export class SessionNumberError extends UserFacingError {
 }
 
 async function lockCycleForSessions(tx: Queryable, cycleId: number) {
-  const { rows } = await tx.query<{ base_limit: number; cycle_number: number }>(
-    `SELECT base_limit, cycle_number FROM payment_cycles WHERE id = $1 FOR UPDATE`,
+  const { rows } = await tx.query<{ base_limit: number; extra_allowance: number; cycle_number: number }>(
+    `SELECT base_limit, extra_allowance, cycle_number FROM payment_cycles WHERE id = $1 FOR UPDATE`,
     [cycleId],
   );
   if (!rows[0]) throw new UserFacingError("Ciclo não encontrado.");
@@ -149,7 +149,11 @@ async function lockCycleForSessions(tx: Queryable, cycleId: number) {
     `SELECT COALESCE(SUM(quantity), 0)::int AS total FROM bonuses WHERE cycle_id = $1`,
     [cycleId],
   );
-  return { limit: rows[0].base_limit + bonus.rows[0].total, cycleNumber: rows[0].cycle_number };
+  // Highest number accepted: paid limit (base + bonuses) + extra allowance.
+  return {
+    limit: rows[0].base_limit + bonus.rows[0].total + rows[0].extra_allowance,
+    cycleNumber: rows[0].cycle_number,
+  };
 }
 
 async function numbersInCycle(tx: Queryable, cycleId: number, excludeId?: number) {
@@ -174,8 +178,8 @@ async function resolveNumber(tx: Queryable, cycleId: number, requested: number |
     if (check.reason === "over-limit") {
       throw new SessionNumberError(
         check.suggestion === null
-          ? `O ciclo ${cycleNumber} está completo (${limit} sessões). Registre um novo pagamento ou um bônus.`
-          : `A sessão ${number} ultrapassa o limite do ciclo ${cycleNumber} (${limit} sessões).`,
+          ? `O ciclo ${cycleNumber} está completo (máximo de ${limit} sessões, incluindo as extras). Registre um novo pagamento ou um bônus.`
+          : `A sessão ${number} ultrapassa o máximo do ciclo ${cycleNumber} (${limit} sessões, incluindo as extras).`,
         check.suggestion,
       );
     }

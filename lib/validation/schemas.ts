@@ -20,6 +20,13 @@ const positiveInt = (label: string, max: number) =>
 
 export const idSchema = z.coerce.number().int().positive();
 
+/** Sessions accepted beyond the paid limit of a cycle. */
+const extraAllowance = z.coerce
+  .number({ message: "Sessões extras deve ser um número." })
+  .int("Sessões extras deve ser um número inteiro.")
+  .min(0, "Sessões extras não pode ser negativo.")
+  .max(100, "Sessões extras deve ser no máximo 100.");
+
 export const sessionInputSchema = z.object({
   cycleId: idSchema,
   // Optional: when omitted the next free number in the cycle is used.
@@ -35,6 +42,7 @@ export const paymentInputSchema = z.object({
   paymentDate: isoDate,
   startDate: z.preprocess(emptyToUndefined, isoDate.optional()),
   baseLimit: positiveInt("Limite de sessões", 1000),
+  extraAllowance: z.preprocess(emptyToUndefined, extraAllowance.optional()),
   notes: optionalText(2000),
 });
 export type PaymentInput = z.infer<typeof paymentInputSchema>;
@@ -44,6 +52,7 @@ export const cycleUpdateSchema = z.object({
   paymentDate: z.preprocess(emptyToUndefined, isoDate.optional()),
   startDate: z.preprocess(emptyToUndefined, isoDate.optional()),
   baseLimit: positiveInt("Limite de sessões", 1000),
+  extraAllowance,
   notes: optionalText(2000),
 });
 export type CycleUpdate = z.infer<typeof cycleUpdateSchema>;
@@ -81,6 +90,7 @@ export const milestoneInputSchema = z.object({
 
 export const settingsInputSchema = z.object({
   defaultCycleLimit: positiveInt("Limite padrão", 1000),
+  defaultExtraAllowance: extraAllowance,
   timeZone: z
     .string()
     .trim()
