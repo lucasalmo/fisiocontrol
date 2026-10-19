@@ -8,7 +8,7 @@ Aplicação web para controle de sessões de fisioterapia e reabilitação: cont
 
 ## 1. Instalação
 
-Requisitos: Node.js 20.12+ e uma conta no [Neon](https://neon.tech).
+Requisitos: Node.js 22+ (o driver do Neon usa o `WebSocket` nativo) e uma conta no [Neon](https://neon.tech).
 
 ```bash
 npm install
